@@ -6,6 +6,7 @@
 from __future__ import absolute_import, division, print_function, unicode_literals
 
 import argparse
+import getpass
 import socket
 import sys
 
@@ -61,7 +62,19 @@ txins = [CTxIn(dust_txout['outpoint']) for dust_txout in dust_txouts]
 txouts = [CTxOut(0, CScript([OP_RETURN]))]
 tx = CTransaction(txins, txouts)
 
-r = proxy.signrawtransaction(tx, [], None, 'ALL|ANYONECANPAY')
+r = None
+try:
+    r = proxy.signrawtransaction(tx, [], None, 'ALL|ANYONECANPAY')
+except bitcoin.rpc.JSONRPCException as exp:
+    if exp.error['code'] == -13:
+        pwd = getpass.getpass('Please enter the wallet passphrase with walletpassphrase first: ')
+        proxy.walletpassphrase(pwd, 10)
+
+        r = proxy.signrawtransaction(tx, [], None, 'ALL|ANYONECANPAY')
+
+    else:
+        raise exp
+
 
 if not r['complete']:
     print("Error! Couldn't sign transaction:")
