@@ -34,7 +34,7 @@ args.address = (addr, int(port))
 
 proxy = bitcoin.rpc.Proxy()
 
-dust_txouts = [unspent for unspent in proxy.listunspent() if unspent['amount'] <= args.dust]
+dust_txouts = [unspent for unspent in proxy.listunspent(0) if unspent['amount'] <= args.dust]
 
 sum_dust_after_fees = 0
 for dust_txout in dust_txouts:
