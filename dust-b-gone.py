@@ -86,11 +86,6 @@ if not r['complete']:
 
 signed_tx = r['tx']
 
-if args.dry_run:
-    print('Done:\n')
-    print(b2x(signed_tx.serialize()))
-    sys.exit(0)
-
 # Do a sanity check on the transaction
 sum_value_discarded = 0
 for txin in signed_tx.vin:
@@ -98,9 +93,14 @@ for txin in signed_tx.vin:
     sum_value_discarded += r['txout'].nValue
 
 # Abort if the amount is excessively large
-if sum_value_discarded > 0.5*COIN:
-    print('Aborting due to excessively large value being discarded. (>0.5 BTC)')
+if sum_value_discarded > 0.10*COIN:
+    print('Aborting due to excessively large value being discarded. (>0.10 BTC)')
     sys.exit(1)
+
+if args.dry_run:
+    print('Done:\n')
+    print(b2x(signed_tx.serialize()))
+    sys.exit(0)
 
 # Monkey-patch in socks proxy support if required for tor
 if args.tor:
