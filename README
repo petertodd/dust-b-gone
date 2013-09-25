@@ -7,6 +7,8 @@ Usage:
 
 ./dust-b-gone.py
 
+You can use the --tor option to use your local Tor proxy for added privacy.
+
 
 What happens to all that dust?
 ==============================

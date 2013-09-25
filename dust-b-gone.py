@@ -8,6 +8,7 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 import argparse
 import getpass
 import socket
+import socks
 import sys
 
 import bitcoin.rpc
@@ -25,12 +26,14 @@ parser.add_argument('--dry-run', action='store_true',
 parser.add_argument('--connect', type=str,
         default='198.199.87.4:80',
         help='address:port to connect to to send the dust')
+parser.add_argument('--tor', action='store_true',
+        help='connect via local tor proxy (127.0.0.1:9050)')
 
 args = parser.parse_args()
 args.dust = int(args.dust * COIN)
 
 addr, port = args.connect.split(':')
-args.address = (addr, int(port))
+args.address = (str(addr), int(port))
 
 
 proxy = bitcoin.rpc.Proxy()
@@ -99,9 +102,21 @@ if sum_value_discarded > 0.5*COIN:
     print('Aborting due to excessively large value being discarded. (>0.5 BTC)')
     sys.exit(1)
 
+# Monkey-patch in socks proxy support if required for tor
+if args.tor:
+    socks.setdefaultproxy(socks.PROXY_TYPE_SOCKS5, "127.0.0.1", 9050)
+    socket.socket = socks.socksocket
+
+    def create_connection(address, timeout=None, source_address=None):
+        sock = socks.socksocket()
+        sock.connect(address)
+        return sock
+    socket.create_connection = create_connection
+
 sock = socket.create_connection(args.address)
 sock.send(b2x(signed_tx.serialize()))
 sock.send('\n')
+sock.close()
 
 # lock txouts discarded
 proxy.lockunspent(False, [txin.prevout for txin in signed_tx.vin])
