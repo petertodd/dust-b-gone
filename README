@@ -1,2 +1,32 @@
 Dust-B-Gone
 ===========
+
+Cleans your Bitcoin-QT wallet of unwanted dust.
+
+Usage:
+
+./dust-b-gone.py
+
+
+What happens to all that dust?
+==============================
+
+Every dust txout is collected into a single transaction sending all the funds
+to mining fees, and that transaction is signed with the ANYONECANPAY flag.
+That flag means anyone else can add inputs to the transaction. Your transaction
+is then sent to Peter Todd's server, where a script collects it and other
+transactions from other people together periodically and merges them into a
+single transaction, destroying the dust.
+
+Because multiple people's dust is merged in one go no-one can tell where it
+came from, and thus what coins are connected to what, protecting your privacy.
+
+
+I restarted Bitcoin and the dust came back!
+===========================================
+
+Your dusty txouts aren't mined immediately; it takes some time for other people
+to submit their dust for collection too. While dust-b-gone *temporarily*
+"locks" the transaction outputs being cleaned from your wallet, those locks
+don't persist after a restart. Don't worry though: the dust will be cleaned up
+sooner or later.

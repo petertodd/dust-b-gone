@@ -1,5 +1,8 @@
 #!/usr/bin/python
 
+# Distributed under the MIT/X11 software license, see the accompanying
+# file COPYING or http://www.opensource.org/licenses/mit-license.php.
+
 from __future__ import absolute_import, division, print_function, unicode_literals
 
 import argparse
@@ -8,7 +11,8 @@ import sys
 
 import bitcoin.rpc
 from bitcoin.coredefs import COIN
-from bitcoin.core import b2x, str_money_value, CTxIn, CTransaction
+from bitcoin.core import b2x, str_money_value, CTxIn, CTxOut, CTransaction
+from bitcoin.script import CScript, OP_RETURN
 
 
 parser = argparse.ArgumentParser(description='Get rid of dust in your wallet')
@@ -51,12 +55,13 @@ if choice != 'y':
     print('Canceled!')
     sys.exit(1)
 
-# User gave the ok, create a NONE|ANYONECANPAY tx spending those txouts
+# User gave the ok, create a ALL|ANYONECANPAY tx spending those txouts
 
 txins = [CTxIn(dust_txout['outpoint']) for dust_txout in dust_txouts]
-tx = CTransaction(txins)
+txouts = [CTxOut(0, CScript([OP_RETURN]))]
+tx = CTransaction(txins, txouts)
 
-r = proxy.signrawtransaction(tx, [], None, 'NONE|ANYONECANPAY')
+r = proxy.signrawtransaction(tx, [], None, 'ALL|ANYONECANPAY')
 
 if not r['complete']:
     print("Error! Couldn't sign transaction:")
