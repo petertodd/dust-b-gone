@@ -41,7 +41,7 @@ for dust_txout in dust_txouts:
     sum_dust_after_fees += max(dust_txout['amount'] - 1480, 0)
 
 if not dust_txouts:
-    print("You're wallet doesn't have any dust in it!")
+    print("Your wallet doesn't have any dust in it!")
     sys.exit(0)
 
 print('You have %d dust txouts, worth %s BTC after fees.' % (
