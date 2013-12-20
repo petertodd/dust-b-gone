@@ -59,7 +59,7 @@ if choice != 'y':
     print('Canceled!')
     sys.exit(1)
 
-# User gave the ok, create a ALL|ANYONECANPAY tx spending those txouts
+# User gave the ok, create a NONE|ANYONECANPAY tx spending those txouts
 
 txins = [CTxIn(dust_txout['outpoint']) for dust_txout in dust_txouts]
 txouts = [CTxOut(0, CScript([OP_RETURN]))]
@@ -67,13 +67,13 @@ tx = CTransaction(txins, txouts)
 
 r = None
 try:
-    r = proxy.signrawtransaction(tx, [], None, 'ALL|ANYONECANPAY')
+    r = proxy.signrawtransaction(tx, [], None, 'NONE|ANYONECANPAY')
 except bitcoin.rpc.JSONRPCException as exp:
     if exp.error['code'] == -13:
         pwd = getpass.getpass('Please enter the wallet passphrase with walletpassphrase first: ')
         proxy.walletpassphrase(pwd, 10)
 
-        r = proxy.signrawtransaction(tx, [], None, 'ALL|ANYONECANPAY')
+        r = proxy.signrawtransaction(tx, [], None, 'NONE|ANYONECANPAY')
 
     else:
         raise exp

@@ -14,9 +14,10 @@ What happens to all that dust?
 ==============================
 
 Every dust txout is collected into a single transaction sending all the funds
-to mining fees, and that transaction is signed with the ANYONECANPAY flag.
-That flag means anyone else can add inputs to the transaction. Your transaction
-is then sent to Peter Todd's server, where a script collects it and other
+to mining fees, and that transaction is signed with the NONE|ANYONECANPAY flag.
+This means anyone else can add inputs to the transaction, and the outputs are
+left undefined. (the funds may be added to any transaction) Your transaction is
+then sent to Peter Todd's server, where a script collects it and other
 transactions from other people together periodically and merges them into a
 single transaction, destroying the dust.
 
