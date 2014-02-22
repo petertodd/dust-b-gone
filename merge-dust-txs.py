@@ -12,9 +12,9 @@ import sys
 
 import bitcoin.rpc
 
-from bitcoin.coredefs import COIN
+from bitcoin.core.coredefs import COIN
 from bitcoin.core import x, b2x, b2lx, str_money_value, CTxIn, CTxOut, CTransaction
-from bitcoin.script import CScript, OP_RETURN
+from bitcoin.core.script import CScript, OP_RETURN
 
 proxy = bitcoin.rpc.Proxy()
 

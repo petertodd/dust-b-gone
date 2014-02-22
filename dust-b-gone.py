@@ -12,9 +12,9 @@ import socks
 import sys
 
 import bitcoin.rpc
-from bitcoin.coredefs import COIN
+from bitcoin.core.coredefs import COIN
 from bitcoin.core import b2x, str_money_value, CTxIn, CTxOut, CTransaction
-from bitcoin.script import CScript, OP_RETURN
+from bitcoin.core.script import CScript, OP_RETURN
 
 
 parser = argparse.ArgumentParser(description='Get rid of dust in your wallet')
