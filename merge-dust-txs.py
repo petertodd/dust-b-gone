@@ -27,7 +27,11 @@ for l in sys.stdin.readlines():
 
     l = l.strip()
 
-    tx = CTransaction.deserialize(x(l))
+    try:
+        tx = CTransaction.deserialize(x(l))
+    except Exception:
+        continue
+
 
     for txin in tx.vin:
         try:
@@ -58,4 +62,4 @@ tx = CTransaction(txins, [CTxOut(0, CScript([OP_RETURN]))])
 
 print(b2x(tx.serialize()))
 
-print('Total: %s' % str_money_value(sum_value_in), file=sys.stderr)
+print('Total: %s  Size: %d' % (str_money_value(sum_value_in), len(tx.serialize())), file=sys.stderr)
