@@ -9,7 +9,7 @@ import os
 from binascii import unhexlify
 
 from bitcoin.core import x
-from bitcoin.script import *
+from bitcoin.core.script import *
 
 class Test_CScriptOp(unittest.TestCase):
     def test_pushdata(self):
@@ -135,7 +135,7 @@ class Test_CScript(unittest.TestCase):
 
     def test_invalid_scripts(self):
         def T(serialized):
-            with self.assertRaises(CScriptInvalidException):
+            with self.assertRaises(CScriptInvalidError):
                 list(CScript(unhexlify(serialized)))
 
         T(b'01')

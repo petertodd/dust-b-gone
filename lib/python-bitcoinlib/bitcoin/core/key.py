@@ -7,27 +7,28 @@
 
 import ctypes
 import ctypes.util
+import hashlib
 
-ssl = ctypes.cdll.LoadLibrary (ctypes.util.find_library ('ssl') or 'libeay32')
+ssl = ctypes.cdll.LoadLibrary(ctypes.util.find_library ('ssl') or 'libeay32')
 
 # this specifies the curve used with ECDSA.
 NID_secp256k1 = 714 # from openssl/obj_mac.h
 
 # Thx to Sam Devlin for the ctypes magic 64-bit fix.
-def check_result (val, func, args):
+def _check_result (val, func, args):
     if val == 0:
         raise ValueError
     else:
         return ctypes.c_void_p (val)
 
 ssl.EC_KEY_new_by_curve_name.restype = ctypes.c_void_p
-ssl.EC_KEY_new_by_curve_name.errcheck = check_result
+ssl.EC_KEY_new_by_curve_name.errcheck = _check_result
 
 class CKey:
+    POINT_CONVERSION_COMPRESSED = 2
+    POINT_CONVERSION_UNCOMPRESSED = 4
 
     def __init__(self):
-        self.POINT_CONVERSION_COMPRESSED = 2
-        self.POINT_CONVERSION_UNCOMPRESSED = 4
         self.k = ssl.EC_KEY_new_by_curve_name(NID_secp256k1)
 
     def __del__(self):
@@ -72,6 +73,20 @@ class CKey:
         mb = ctypes.create_string_buffer(size)
         ssl.i2o_ECPublicKey(self.k, ctypes.byref(ctypes.pointer(mb)))
         return mb.raw
+
+    def get_raw_ecdh_key(self, other_pubkey):
+        ecdh_keybuffer = ctypes.create_string_buffer(32)
+        r = ssl.ECDH_compute_key(ctypes.pointer(ecdh_keybuffer), 32,
+                                 ssl.EC_KEY_get0_public_key(other_pubkey.k),
+                                 self.k, 0)
+        if r != 32:
+            raise Exception('CKey.get_ecdh_key(): ECDH_compute_key() failed')
+        return ecdh_keybuffer.raw
+
+    def get_ecdh_key(self, other_pubkey, kdf=lambda k: hashlib.sha256(k).digest()):
+        # FIXME: be warned it's not clear what the kdf should be as a default
+        r = self.get_raw_ecdh_key(other_pubkey)
+        return kdf(r)
 
     def sign(self, hash):
         sig_size0 = ctypes.c_uint32()

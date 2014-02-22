@@ -6,6 +6,12 @@
 # file COPYING or http://www.opensource.org/licenses/mit-license.php.
 #
 
+"""Scripts
+
+Functionality to build scripts, as well as SignatureHash(). Script evaluation
+is in bitcoin.core.scripteval
+"""
+
 from __future__ import absolute_import, division, print_function, unicode_literals
 
 import sys
@@ -16,14 +22,11 @@ if sys.version > '3':
         bchr = lambda x: bytes([x])
         bord = lambda x: x
 
-import bitcoin.bignum
+import copy
 import struct
-import bitcoin.core
 
-SIGHASH_ALL = 1
-SIGHASH_NONE = 2
-SIGHASH_SINGLE = 3
-SIGHASH_ANYONECANPAY = 0x80
+import bitcoin.core
+import bitcoin.core.bignum
 
 OPCODE_NAMES = {}
 
@@ -591,13 +594,13 @@ OPCODES_BY_NAME = {
     'OP_PUBKEY' : OP_PUBKEY,
 }
 
-class CScriptInvalidException(Exception):
+class CScriptInvalidError(Exception):
     pass
 
-class CScriptTruncatedPushDataException(CScriptInvalidException):
+class CScriptTruncatedPushDataError(CScriptInvalidError):
     def __init__(self, msg, data):
         self.data = data
-        super(CScriptTruncatedPushDataException, self).__init__(msg)
+        super(CScriptTruncatedPushDataError, self).__init__(msg)
 
 class CScript(bytes):
     @classmethod
@@ -609,7 +612,7 @@ class CScript(bytes):
             if 0 <= other <= 16:
                 other = bytes(bchr(CScriptOp.encode_op_n(other)))
             else:
-                other = CScriptOp.encode_op_pushdata(bitcoin.bignum.bn2vch(other))
+                other = CScriptOp.encode_op_pushdata(bitcoin.core.bignum.bn2vch(other))
         elif isinstance(other, (bytes, bytearray)):
             other = CScriptOp.encode_op_pushdata(other)
         return other
@@ -659,21 +662,21 @@ class CScript(bytes):
                 elif opcode == OP_PUSHDATA1:
                     pushdata_type = 'PUSHDATA1'
                     if i >= len(self):
-                        raise CScriptInvalidException('PUSHDATA1: missing data length')
+                        raise CScriptInvalidError('PUSHDATA1: missing data length')
                     datasize = bord(self[i])
                     i += 1
 
                 elif opcode == OP_PUSHDATA2:
                     pushdata_type = 'PUSHDATA2'
                     if i + 1 >= len(self):
-                        raise CScriptInvalidException('PUSHDATA2: missing data length')
+                        raise CScriptInvalidError('PUSHDATA2: missing data length')
                     datasize = bord(self[i]) + (bord(self[i+1]) << 8)
                     i += 2
 
                 elif opcode == OP_PUSHDATA4:
                     pushdata_type = 'PUSHDATA4'
                     if i + 3 >= len(self):
-                        raise CScriptInvalidException('PUSHDATA4: missing data length')
+                        raise CScriptInvalidError('PUSHDATA4: missing data length')
                     datasize = bord(self[i]) + (bord(self[i+1]) << 8) + (bord(self[i+2]) << 16) + (bord(self[i+3]) << 24)
                     i += 4
 
@@ -685,7 +688,7 @@ class CScript(bytes):
 
                 # Check for truncation
                 if len(data) < datasize:
-                    raise CScriptTruncatedPushDataException('%s: truncated data' % pushdata_type, data)
+                    raise CScriptTruncatedPushDataError('%s: truncated data' % pushdata_type, data)
 
                 i += datasize
 
@@ -718,10 +721,10 @@ class CScript(bytes):
             op = None
             try:
                 op = _repr(next(i))
-            except CScriptTruncatedPushDataException as err:
+            except CScriptTruncatedPushDataError as err:
                 op = '%s...<ERROR: %s>' % (_repr(err.data), err)
                 break
-            except CScriptInvalidException as err:
+            except CScriptInvalidError as err:
                 op = '<ERROR: %s>' % err
                 break
             except StopIteration:
@@ -757,6 +760,83 @@ class CScript(bytes):
         """
         try:
             list(self)
-        except CScriptInvalidException:
+        except CScriptInvalidError:
             return False
         return True
+
+    def GetSigOpCount(self, fAccurate):
+        n = 0
+        lastOpcode = OP_INVALIDOPCODE
+        for (opcode, data, sop_idx) in self.raw_iter():
+            if opcode in (OP_CHECKSIG, OP_CHECKSIGVERIFY):
+                n += 1
+            elif opcode in (OP_CHECKMULTISIG, OP_CHECKMULTISIGVERIFY):
+                if fAccurate and (OP_1 <= lastOpcode <= OP_16):
+                    n += opcode.decode_op_n()
+                else:
+                    n += 20
+            lastOpcode = opcode
+        return n
+
+
+SCRIPT_VERIFY_P2SH = object()
+SCRIPT_VERIFY_STRICTENC = object()
+SCRIPT_VERIFY_EVEN_S = object()
+SCRIPT_VERIFY_NOCACHE = object()
+
+SIGHASH_ALL = 1
+SIGHASH_NONE = 2
+SIGHASH_SINGLE = 3
+SIGHASH_ANYONECANPAY = 0x80
+
+def RawSignatureHash(script, txTo, inIdx, hashtype):
+    HASH_ONE = b'\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
+
+    if inIdx >= len(txTo.vin):
+        return (HASH_ONE, "inIdx %d out of range (%d)" % (inIdx, len(txTo.vin)))
+    txtmp = copy.deepcopy(txTo)
+
+    for txin in txtmp.vin:
+        txin.scriptSig = b''
+    txtmp.vin[inIdx].scriptSig = script
+
+    if (hashtype & 0x1f) == SIGHASH_NONE:
+        txtmp.vout = []
+
+        for i in range(len(txtmp.vin)):
+            if i != inIdx:
+                txtmp.vin[i].nSequence = 0
+
+    elif (hashtype & 0x1f) == SIGHASH_SINGLE:
+        outIdx = inIdx
+        if outIdx >= len(txtmp.vout):
+            return (HASH_ONE, "outIdx %d out of range (%d)" % (outIdx, len(txtmp.vout)))
+
+        tmp = txtmp.vout[outIdx]
+        txtmp.vout = []
+        for i in range(outIdx):
+            txtmp.vout.append(bitcoin.core.CTxOut())
+        txtmp.vout.append(tmp)
+
+        for i in range(len(txtmp.vin)):
+            if i != inIdx:
+                txtmp.vin[i].nSequence = 0
+
+    if hashtype & SIGHASH_ANYONECANPAY:
+        tmp = txtmp.vin[inIdx]
+        txtmp.vin = []
+        txtmp.vin.append(tmp)
+
+    s = txtmp.serialize()
+    s += struct.pack(b"<I", hashtype)
+
+    hash = bitcoin.core.Hash(s)
+
+    return (hash, None)
+
+
+def SignatureHash(script, txTo, inIdx, hashtype):
+    (h, err) = RawSignatureHash(script, txTo, inIdx, hashtype)
+    if err is not None:
+        raise ValueError(err)
+    return h

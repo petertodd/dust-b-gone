@@ -12,11 +12,11 @@ import struct
 import socket
 import binascii
 import hashlib
-import bitcoin.base58 as base58
-import bitcoin.script as script
 
-from bitcoin.serialize import *
-from bitcoin.coredefs import *
+from .script import CScript
+
+from .serialize import *
+from .coredefs import *
 
 def x(h):
     """Convert a hex string to bytes"""
@@ -64,85 +64,14 @@ def str_money_value(value):
         r += '0'
     return r
 
-class CBitcoinAddress(base58.CBase58Data):
-    """A Bitcoin address"""
-    PUBKEY_ADDRESS = 0
-    SCRIPT_ADDRESS = 5
-    PUBKEY_ADDRESS_TEST = 111
-    SCRIPT_ADDRESS_TEST = 196
 
-    def to_scriptPubKey(self):
-        """Convert an address to a scriptPubKey"""
-        if self.nVersion in (self.PUBKEY_ADDRESS, self.PUBKEY_ADDRESS_TEST):
-            return script.CScript([script.OP_DUP, script.OP_HASH160, self, script.OP_EQUALVERIFY, script.OP_CHECKSIG])
+class ValidationError(Exception):
+    """Base class for all blockchain validation errors
 
-        elif self.nVersion in (self.SCRIPT_ADDRESS, self.SCRIPT_ADDRESS_TEST):
-            return script.CScript([script.OP_HASH160, self, script.OP_EQUAL])
+    Everything that is related to validating the blockchain, blocks,
+    transactions, scripts, etc. is derived from this class.
+    """
 
-        else:
-            raise ValueError("CBitcoinAddress: Don't know how to convert version %d to a scriptPubKey" % self.nVersion)
-
-
-class CAddress(object):
-    def __init__(self, protover=PROTO_VERSION):
-        self.protover = protover
-        self.nTime = 0
-        self.nServices = 1
-        self.pchReserved = b"\x00" * 10 + b"\xff" * 2
-        self.ip = "0.0.0.0"
-        self.port = 0
-    def deserialize(self, f):
-        if self.protover >= CADDR_TIME_VERSION:
-            self.nTime = struct.unpack(b"<I", ser_read(f,4))[0]
-        self.nServices = struct.unpack(b"<Q", ser_read(f,8))[0]
-        self.pchReserved = ser_read(f,12)
-        self.ip = socket.inet_ntoa(ser_read(f,4))
-        self.port = struct.unpack(b">H", ser_read(f,2))[0]
-    def serialize(self):
-        r = b""
-        if self.protover >= CADDR_TIME_VERSION:
-            r += struct.pack(b"<I", self.nTime)
-        r += struct.pack(b"<Q", self.nServices)
-        r += self.pchReserved
-        r += socket.inet_aton(self.ip)
-        r += struct.pack(b">H", self.port)
-        return r
-    def __repr__(self):
-        return "CAddress(nTime=%d nServices=%i ip=%s port=%i)" % (self.nTime, self.nServices, self.ip, self.port)
-
-class CInv(object):
-    typemap = {
-        0: "Error",
-        1: "TX",
-        2: "Block"}
-    def __init__(self):
-        self.type = 0
-        self.hash = 0
-    def deserialize(self, f):
-        self.type = struct.unpack(b"<i", ser_read(f,4))[0]
-        self.hash = ser_read(f,32)
-    def serialize(self):
-        r = b""
-        r += struct.pack(b"<i", self.type)
-        r += self.hash
-        return r
-    def __repr__(self):
-        return "CInv(type=%s hash=%064x)" % (self.typemap[self.type], self.hash)
-
-class CBlockLocator(object):
-    def __init__(self):
-        self.nVersion = PROTO_VERSION
-        self.vHave = []
-    def deserialize(self, f):
-        self.nVersion = struct.unpack(b"<i", ser_read(f,4))[0]
-        self.vHave = deser_uint256_vector(f)
-    def serialize(self):
-        r = b""
-        r += struct.pack(b"<i", self.nVersion)
-        r += ser_uint256_vector(self.vHave)
-        return r
-    def __repr__(self):
-        return "CBlockLocator(nVersion=%i vHave=%s)" % (self.nVersion, repr(self.vHave))
 
 class COutPoint(Serializable):
     """The combination of a transaction hash and an index n into its vout"""
@@ -184,7 +113,7 @@ class CTxIn(Serializable):
     """
     __slots__ = ['prevout', 'scriptSig', 'nSequence']
 
-    def __init__(self, prevout=None, scriptSig=script.CScript(), nSequence = 0xffffffff):
+    def __init__(self, prevout=None, scriptSig=CScript(), nSequence = 0xffffffff):
         if prevout is None:
             prevout = COutPoint()
         self.prevout = prevout
@@ -316,12 +245,6 @@ class CBlockHeader(Serializable):
         f.write(struct.pack(b"<I", self.nBits))
         f.write(struct.pack(b"<I", self.nNonce))
 
-    def is_pow_valid(self):
-        """Return True if the proof-of-work is valid"""
-        hash = Hash(self.serialize())
-        target = uint256_from_compact(self.nBits)
-        return hash < target
-
     @staticmethod
     def calc_difficulty(nBits):
         """Calculate difficulty from nBits target"""
@@ -371,72 +294,176 @@ class CBlock(CBlockHeader):
             hashes = newhashes
         return hashes[0]
 
+    def get_header(self):
+        """Return the block header
+
+        Returned header is a new object.
+        """
+        return CBlockHeader(nVersion=self.nVersion,
+                            hashPrevBlock=self.hashPrevBlock,
+                            hashMerkleRoot=self.hashMerkleRoot,
+                            nTime=self.nTime,
+                            nBits=self.nBits,
+                            nNonce=self.nNonce)
+
     def calc_merkle_root(self):
         hashes = []
         for tx in self.vtx:
             hashes.append(Hash(tx.serialize()))
         return CBlock.calc_merkle_root_from_hashes(hashes)
 
-class CUnsignedAlert(object):
-    def __init__(self):
-        self.nVersion = 1
-        self.nRelayUntil = 0
-        self.nExpiration = 0
-        self.nID = 0
-        self.nCancel = 0
-        self.setCancel = []
-        self.nMinVer = 0
-        self.nMaxVer = 0
-        self.setSubVer = []
-        self.nPriority = 0
-        self.strComment = b""
-        self.strStatusBar = b""
-        self.strReserved = b""
-    def deserialize(self, f):
-        self.nVersion = struct.unpack(b"<i", ser_read(f,4))[0]
-        self.nRelayUntil = struct.unpack(b"<q", ser_read(f,8))[0]
-        self.nExpiration = struct.unpack(b"<q", ser_read(f,8))[0]
-        self.nID = struct.unpack(b"<i", ser_read(f,4))[0]
-        self.nCancel = struct.unpack(b"<i", ser_read(f,4))[0]
-        self.setCancel = deser_int_vector(f)
-        self.nMinVer = struct.unpack(b"<i", ser_read(f,4))[0]
-        self.nMaxVer = struct.unpack(b"<i", ser_read(f,4))[0]
-        self.setSubVer = deser_string_vector(f)
-        self.nPriority = struct.unpack(b"<i", ser_read(f,4))[0]
-        self.strComment = deser_string(f)
-        self.strStatusBar = deser_string(f)
-        self.strReserved = deser_string(f)
-    def serialize(self):
-        r = b""
-        r += struct.pack(b"<i", self.nVersion)
-        r += struct.pack(b"<q", self.nRelayUntil)
-        r += struct.pack(b"<q", self.nExpiration)
-        r += struct.pack(b"<i", self.nID)
-        r += struct.pack(b"<i", self.nCancel)
-        r += ser_int_vector(self.setCancel)
-        r += struct.pack(b"<i", self.nMinVer)
-        r += struct.pack(b"<i", self.nMaxVer)
-        r += ser_string_vector(self.setSubVer)
-        r += struct.pack(b"<i", self.nPriority)
-        r += ser_string(self.strComment)
-        r += ser_string(self.strStatusBar)
-        r += ser_string(self.strReserved)
-        return r
-    def __repr__(self):
-        return "CUnsignedAlert(nVersion %d, nRelayUntil %d, nExpiration %d, nID %d, nCancel %d, nMinVer %d, nMaxVer %d, nPriority %d, strComment %s, strStatusBar %s, strReserved %s)" % (self.nVersion, self.nRelayUntil, self.nExpiration, self.nID, self.nCancel, self.nMinVer, self.nMaxVer, self.nPriority, self.strComment, self.strStatusBar, self.strReserved)
 
-class CAlert(object):
-    def __init__(self):
-        self.vchMsg = b""
-        self.vchSig = b""
-    def deserialize(self, f):
-        self.vchMsg = deser_string(f)
-        self.vchSig = deser_string(f)
-    def serialize(self):
-        r = b""
-        r += ser_string(self.vchMsg)
-        r += ser_string(self.vchSig)
-        return r
-    def __repr__(self):
-        return "CAlert(vchMsg.sz %d, vchSig.sz %d)" % (len(self.vchMsg), len(self.vchSig))
+class CheckTransactionError(ValidationError):
+    pass
 
+def CheckTransaction(tx):
+    """Basic transaction checks that don't depend on any context.
+
+    Raises CheckTransactionError
+    """
+
+    if not tx.vin:
+        raise CheckTransactionError("CheckTransaction() : vin empty")
+    if not tx.vout:
+        raise CheckTransactionError("CheckTransaction() : vout empty")
+
+    # Size limits
+    if len(tx.serialize()) > MAX_BLOCK_SIZE:
+        raise CheckTransactionError("CheckTransaction() : size limits failed")
+
+    # Check for negative or overflow output values
+    nValueOut = 0
+    for txout in tx.vout:
+        if txout.nValue < 0:
+            raise CheckTransactionError("CheckTransaction() : txout.nValue negative")
+        if txout.nValue > MAX_MONEY:
+            raise CheckTransactionError("CheckTransaction() : txout.nValue too high")
+        nValueOut += txout.nValue
+        if not MoneyRange(nValueOut):
+            raise CheckTransactionError("CheckTransaction() : txout total out of range")
+
+    # Check for duplicate inputs
+    vin_outpoints = set()
+    for txin in tx.vin:
+        if txin.prevout in vin_outpoints:
+            raise CheckTransactionError("CheckTransaction() : duplicate inputs")
+        vin_outpoints.add(txin.prevout)
+
+    if tx.is_coinbase():
+        if not (2 <= len(tx.vin[0].scriptSig) <= 100):
+            raise CheckTransactionError("CheckTransaction() : coinbase script size")
+
+    else:
+        for txin in tx.vin:
+            if txin.prevout.is_null():
+                raise CheckTransactionError("CheckTransaction() : prevout is null")
+
+
+
+
+
+class CheckBlockHeaderError(ValidationError):
+    pass
+
+class CheckProofOfWorkError(CheckBlockHeaderError):
+    pass
+
+def CheckProofOfWork(hash, nBits):
+    """Check a proof-of-work
+
+    Raises CheckProofOfWorkError
+    """
+    target = uint256_from_compact(nBits)
+
+    # Check range
+    if not (0 < target <= PROOF_OF_WORK_LIMIT):
+        raise CheckProofOfWorkError("CheckProofOfWork() : nBits below minimum work")
+
+    # Check proof of work matches claimed amount
+    hash = uint256_from_str(hash)
+    if hash > target:
+        raise CheckProofOfWorkError("CheckProofOfWork() : hash doesn't match nBits")
+
+
+def CheckBlockHeader(block_header, fCheckPoW = True, cur_time=None):
+    """Context independent CBlockHeader checks.
+
+    fCheckPoW - Check proof-of-work.
+    cur_time  - Current time. Defaults to time.time()
+
+    Raises CBlockHeaderError if block header is invalid.
+    """
+    if cur_time is None:
+        cur_time = time.time()
+
+    # Check proof-of-work matches claimed amount
+    if fCheckPoW:
+        CheckProofOfWork(Hash(block_header.serialize()), block_header.nBits)
+
+    # Check timestamp
+    if block_header.nTime > cur_time + 2 * 60 * 60:
+        raise CheckBlockHeaderError("CheckBlockHeader() : block timestamp too far in the future")
+
+
+class CheckBlockError(CheckBlockHeaderError):
+    pass
+
+def GetLegacySigOpCount(tx):
+    nSigOps = 0
+    for txin in tx.vin:
+        nSigOps += txin.scriptSig.GetSigOpCount(False)
+    for txout in tx.vout:
+        nSigOps += txout.scriptPubKey.GetSigOpCount(False)
+    return nSigOps
+
+
+def CheckBlock(block, fCheckPoW = True, fCheckMerkleRoot = True, cur_time=None):
+    """Context independent CBlock checks.
+
+    CheckBlockHeader() is called first, which may raise a CheckBlockHeader
+    exception, followed the block tests. CheckTransaction() is called for every
+    transaction.
+
+    fCheckPoW        - Check proof-of-work.
+    fCheckMerkleRoot - Check merkle root matches transactions.
+    cur_time         - Current time. Defaults to time.time()
+    """
+
+    # Block header checks
+    CheckBlockHeader(block.get_header(), fCheckPoW=fCheckPoW, cur_time=cur_time)
+
+    # Size limits
+    if not block.vtx:
+        raise CheckBlockError("CheckBlock() : vtx empty")
+    if len(block.serialize()) > MAX_BLOCK_SIZE:
+        raise CheckBlockError("CheckBlock() : block larger than MAX_BLOCK_SIZE")
+
+    # First transaction must be coinbase
+    if not block.vtx[0].is_coinbase():
+        raise CheckBlockError("CheckBlock() : first tx is not coinbase")
+
+    # Check rest of transactions. Note how we do things "all at once", which
+    # could potentially be a consensus failure if there was some obscure bug.
+
+    # For unique txid uniqueness testing. If coinbase tx is included twice
+    # it'll be caught by the "more than one coinbase" test.
+    unique_txids = set()
+    nSigOps = 0
+    for tx in block.vtx[1:]:
+        if tx.is_coinbase():
+            raise CheckBlockError("CheckBlock() : more than one coinbase")
+
+        CheckTransaction(tx)
+
+        txid = Hash(tx.serialize())
+        if txid in unique_txids:
+            raise CheckBlockError("CheckBlock() : duplicate transaction")
+        unique_txids.add(txid)
+
+        nSigOps += GetLegacySigOpCount(tx)
+        if nSigOps > MAX_BLOCK_SIGOPS:
+            raise CheckBlockError("CheckBlock() : out-of-bounds SigOpCount")
+
+    # Check merkle root
+    if fCheckMerkleRoot and block.hashMerkleRoot != block.calc_merkle_root():
+        raise CheckBlockError("CheckBlock() : hashMerkleRoot mismatch")
