@@ -1,11 +1,11 @@
 Dust-B-Gone
 ===========
 
-Cleans your Bitcoin-QT wallet of unwanted dust.
+Cleans your Bitcoin Core wallet of unwanted dust.
 
 Usage:
 
-./dust-b-gone.py
+./dust-b-gone.py [--testnet]
 
 You can use the --tor option to use your local Tor proxy for added privacy.
 

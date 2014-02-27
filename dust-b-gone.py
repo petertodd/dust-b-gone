@@ -11,9 +11,10 @@ import socket
 import socks
 import sys
 
+import bitcoin
 import bitcoin.rpc
-from bitcoin.core.coredefs import COIN
-from bitcoin.core import b2x, str_money_value, CTxIn, CTxOut, CTransaction
+
+from bitcoin.core import COIN, b2x, str_money_value, CTxIn, CTxOut, CTransaction
 from bitcoin.core.script import CScript, OP_RETURN
 
 
@@ -26,6 +27,8 @@ parser.add_argument('--dry-run', action='store_true',
 parser.add_argument('--connect', type=str,
         default='dust-b-gone.bitcoin.petertodd.org:80',
         help='address:port to connect to to send the dust')
+parser.add_argument('--testnet', action='store_true',
+        help='Use testnet rather than mainnet')
 parser.add_argument('--tor', action='store_true',
         help='connect via local tor proxy (127.0.0.1:9050)')
 
@@ -35,6 +38,8 @@ args.dust = int(args.dust * COIN)
 addr, port = args.connect.split(':')
 args.address = (str(addr), int(port))
 
+if args.testnet:
+    bitcoin.SelectParams('testnet')
 
 proxy = bitcoin.rpc.Proxy()
 

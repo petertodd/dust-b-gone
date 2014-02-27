@@ -7,14 +7,23 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 
 # Script to merge the dust transactions.
 
+import argparse
 import random
 import sys
 
+import bitcoin
 import bitcoin.rpc
 
-from bitcoin.core.coredefs import COIN
-from bitcoin.core import x, b2x, b2lx, str_money_value, CTxIn, CTxOut, CTransaction
+from bitcoin.core import COIN, x, b2x, b2lx, str_money_value, CTxIn, CTxOut, CTransaction
 from bitcoin.core.script import CScript, OP_RETURN
+
+parser = argparse.ArgumentParser(description='Merge dust txouts')
+parser.add_argument('--testnet', action='store_true',
+        help='Use testnet rather than mainnet')
+
+args = parser.parse_args()
+if args.testnet:
+    bitcoin.SelectParams('testnet')
 
 proxy = bitcoin.rpc.Proxy()
 
