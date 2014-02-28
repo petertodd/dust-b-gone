@@ -21,7 +21,7 @@ then sent to Peter Todd's server, where a script collects it and other
 transactions from other people together periodically and merges them into a
 single transaction, destroying the dust.
 
-Because multiple people's dust is merged in one go no-one can tell where it
+Because multiple peoples' dust is merged in one go no-one can tell where it
 came from, and thus what coins are connected to what, protecting your privacy.
 
 
