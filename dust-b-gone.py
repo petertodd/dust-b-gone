@@ -118,10 +118,15 @@ if args.tor:
         return sock
     socket.create_connection = create_connection
 
-sock = socket.create_connection(args.address)
-sock.send(b2x(signed_tx.serialize()))
-sock.send('\n')
-sock.close()
+try:
+    sock = socket.create_connection(args.address)
+    sock.send(b2x(signed_tx.serialize()))
+    sock.send('\n')
+    sock.close()
+except socket.error as err:
+    print()
+    print("Failed to connect to dust-b-gone server: %s" % err.strerror)
+    sys.exit(1)
 
 # lock txouts discarded
 proxy.lockunspent(False, [txin.prevout for txin in signed_tx.vin])
