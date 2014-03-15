@@ -94,24 +94,43 @@ class Base58ChecksumError(Base58Error):
     pass
 
 class CBase58Data(bytes):
-    """Base58-encoded data"""
+    """Base58-encoded data
+
+    Includes a version and checksum.
+    """
     def __new__(cls, s):
         k = decode(s)
-        addrbyte, data, check0 = k[0:1], k[1:-4], k[-4:]
-        check1 = bitcoin.core.Hash(addrbyte + data)[:4]
+        verbyte, data, check0 = k[0:1], k[1:-4], k[-4:]
+        check1 = bitcoin.core.Hash(verbyte + data)[:4]
         if check0 != check1:
             raise Base58ChecksumError('Checksum mismatch: expected %r, calculated %r' % (check0, check1))
-        return cls.from_bytes(data, ord(addrbyte))
+
+        return cls.from_bytes(data, bord(verbyte[0]))
+
+    def __init__(self, s):
+        """Initialize from base58-encoded string
+
+        Note: subclasses put your initialization routines here, but ignore the
+        argument - that's handled by __new__(), and .from_bytes() will call
+        __init__() with None in place of the string.
+        """
 
     @classmethod
     def from_bytes(cls, data, nVersion):
         """Instantiate from data and nVersion"""
-        self = super(CBase58Data, cls).__new__(cls, data)
+        if not (0 <= nVersion <= 255):
+            raise ValueError('nVersion must be in range 0 to 255 inclusive; got %d' % nVersion)
+        self = bytes.__new__(cls, data)
         self.nVersion = nVersion
+
         return self
 
     def to_bytes(self):
-        """Convert to bytes"""
+        """Convert to bytes instance
+
+        Note that it's the data represented that is converted; the checkum and
+        nVersion is not included.
+        """
         return b'' + self
 
     def __str__(self):

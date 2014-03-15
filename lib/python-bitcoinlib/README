@@ -6,6 +6,15 @@ structures and protocol. The approach is low-level and "ground up", with a
 focus on providing tools to manipulate the internals of how Bitcoin works.
 
 
+Requirements
+------------
+
+    sudo apt-get install libssl-dev
+
+The RPC interface, bitcoin.rpc, is designed to work with Bitcoin Core v0.9.
+Older versions mostly work but there do exist some incompatibilities.
+
+
 Structure
 ---------
 
@@ -30,7 +39,8 @@ bitcoin.bloom      - Bloom filters (incomplete)
 bitcoin.net        - Network communication (broken currently)
 bitcoin.messages   - Network messages (broken currently)
 bitcoin.rpc        - Bitcoin Core RPC interface support
-bitcoin.wallet     - Wallet code, currently just CBitcoinAddress
+bitcoin.wallet     - Wallet-related code, currently Bitcoin address and private
+                     key support
 
 Effort has been made to follow the Satoshi source relatively closely, for
 instance Python code and classes that duplicate the functionality of
@@ -41,7 +51,14 @@ CBlockHeader, nValue etc. Otherwise Python naming conventions are followed.
 Example Code
 ------------
 
-See examples/ directory.
+See examples/ directory. For instance this example creates a transaction
+spending a pay-to-script-hash transaction output:
+
+    $ PYTHONPATH=. examples/spend-pay-to-script-hash-txout.py
+    <hex-encoded transaction>
+
+Also see dust-b-gone for a simple example of Bitcoin Core wallet interaction
+through the RPC interface: https://github.com/petertodd/dust-b-gone
 
 
 Selecting the chain to use
