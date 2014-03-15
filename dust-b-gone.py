@@ -98,8 +98,8 @@ for txin in signed_tx.vin:
     sum_value_discarded += r['txout'].nValue
 
 # Abort if the amount is excessively large
-if sum_value_discarded > 0.10*COIN:
-    print('Aborting due to excessively large value being discarded. (>0.10 BTC)')
+if sum_value_discarded > 0.01*COIN:
+    print('Aborting due to excessively large value being discarded. (>0.01 BTC)')
     sys.exit(1)
 
 if args.dry_run:
