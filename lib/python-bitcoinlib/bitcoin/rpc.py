@@ -141,12 +141,12 @@ class RawProxy(object):
             # Callables re-use the connection of the original proxy
             self.__conn = _connection
         elif self.__url.scheme == 'https':
-            self.__conn = httplib.HTTPSConnection(self.__url.hostname, port,
-                                                  None, None, False,
-                                                  timeout)
+            self.__conn = httplib.HTTPSConnection(self.__url.hostname, port=port,
+                                                  key_file=None, cert_file=None,
+                                                  timeout=timeout)
         else:
-            self.__conn = httplib.HTTPConnection(self.__url.hostname, port,
-                                                 False, timeout)
+            self.__conn = httplib.HTTPConnection(self.__url.hostname, port=port,
+                                                 timeout=timeout)
 
 
     def _call(self, service_name, *args):
@@ -237,6 +237,15 @@ class Proxy(RawProxy):
         r = self._call('getaccountaddress', account)
         return CBitcoinAddress(r)
 
+    def getbalance(self, account='*', minconf=1):
+        """Get the balance
+
+        account - The selected account. Defaults to "*" for entire wallet. It may be the default account using "".
+        minconf - Only include transactions confirmed at least this many times. (default=1)
+        """
+        r = self._call('getbalance', account, minconf)
+        return int(r*COIN)
+
     def getblock(self, block_hash):
         """Get block <block_hash>
 
@@ -286,6 +295,24 @@ class Proxy(RawProxy):
 
         return CBitcoinAddress(r)
 
+    def getrawchangeaddress(self):
+        """Returns a new Bitcoin address, for receiving change.
+
+        This is for use with raw transactions, NOT normal use.
+        """
+        r = self._call('getrawchangeaddress')
+        return CBitcoinAddress(r)
+
+    def getrawmempool(self, verbose=False):
+        """Return the mempool"""
+        if verbose:
+            return self._call('getrawmempool', verbose)
+
+        else:
+            r = self._call('getrawmempool')
+            r = [lx(txid) for txid in r]
+            return r
+
     def getrawtransaction(self, txid, verbose=False):
         """Return transaction with hash txid
 
@@ -314,6 +341,20 @@ class Proxy(RawProxy):
         else:
             r = CTransaction.deserialize(unhexlify(r))
 
+        return r
+
+    def gettransaction(self, txid):
+        """Get detailed information about in-wallet transaction txid
+
+        Raises IndexError if transaction not found in the wallet.
+
+        FIXME: Returned data types are not yet converted.
+        """
+        try:
+            r = self._call('gettransaction', b2lx(txid))
+        except JSONRPCException as ex:
+            raise IndexError('%s.getrawtransaction(): %s (%d)' %
+                    (self.__class__.__name__, ex.error['message'], ex.error['code']))
         return r
 
     def gettxout(self, outpoint, includemempool=True):
@@ -366,10 +407,24 @@ class Proxy(RawProxy):
         json_outpoints = [{'txid':b2lx(outpoint.hash),'vout':outpoint.n} for outpoint in outpoints]
         return self._call('lockunspent', unlock, json_outpoints)
 
-    def sendrawtransaction(self, tx):
-        """Submit transaction to local node and network."""
+    def sendrawtransaction(self, tx, allowhighfees=False):
+        """Submit transaction to local node and network.
+
+        allowhighfees - Allow even if fees are unreasonably high.
+        """
         hextx = hexlify(tx.serialize())
-        r = self._call('sendrawtransaction', hextx)
+        r = None
+        if allowhighfees:
+            r = self._call('sendrawtransaction', hextx, True)
+        else:
+            r = self._call('sendrawtransaction', hextx)
+        return lx(r)
+
+    def sendtoaddress(self, addr, amount):
+        """Sent amount to a given address"""
+        addr = str(addr)
+        amount = float(amount)/COIN
+        r = self._call('sendtoaddress', addr, amount)
         return lx(r)
 
     def signrawtransaction(self, tx, *args):
@@ -398,6 +453,21 @@ class Proxy(RawProxy):
     def validateaddress(self, address):
         """Return information about an address"""
         r = self._call('validateaddress', str(address))
-        r['address'] = CBitcoinAddress(r['address'])
-        r['pubkey'] = unhexlify(r['pubkey'])
+        if r['isvalid']:
+            r['address'] = CBitcoinAddress(r['address'])
+        if 'pubkey' in r:
+            r['pubkey'] = unhexlify(r['pubkey'])
         return r
+
+    def _addnode(self, node, arg):
+        r = self._call('addnode', node, arg)
+        return r
+
+    def addnode(self, node):
+        return self._addnode(node, 'add')
+
+    def addnodeonetry(self, node):
+        return self._addnode(node, 'onetry')
+
+    def removenode(self, node):
+        return self._addnode(node, 'remove')

@@ -633,6 +633,8 @@ class CScript(bytes):
         elif isinstance(other, (int, long)):
             if 0 <= other <= 16:
                 other = bytes(bchr(CScriptOp.encode_op_n(other)))
+            elif other == -1:
+                other = bytes(bchr(OP_1NEGATE))
             else:
                 other = CScriptOp.encode_op_pushdata(bitcoin.core.bignum.bn2vch(other))
         elif isinstance(other, (bytes, bytearray)):
@@ -785,11 +787,18 @@ class CScript(bytes):
         """Test if the script only contains pushdata ops
 
         Note that this test is consensus-critical.
+
+        Scripts that contain invalid pushdata ops return False, matching the
+        behavior in Bitcoin Core.
         """
-        for (op, op_data, idx) in self.raw_iter():
-            # Note how OP_RESERVED is considered a pushdata op.
-            if op > OP_16:
-                return False
+        try:
+            for (op, op_data, idx) in self.raw_iter():
+                # Note how OP_RESERVED is considered a pushdata op.
+                if op > OP_16:
+                    return False
+
+        except CScriptTruncatedPushDataError: # Invalid pushdata
+            return False
         return True
 
     def is_unspendable(self):
@@ -887,7 +896,7 @@ def RawSignatureHash(script, txTo, inIdx, hashtype):
 
     if inIdx >= len(txTo.vin):
         return (HASH_ONE, "inIdx %d out of range (%d)" % (inIdx, len(txTo.vin)))
-    txtmp = copy.deepcopy(txTo)
+    txtmp = bitcoin.core.CMutableTransaction.from_tx(txTo)
 
     for txin in txtmp.vin:
         txin.scriptSig = b''
