@@ -6,6 +6,7 @@
 from __future__ import absolute_import, division, print_function, unicode_literals
 
 import argparse
+import binascii
 import getpass
 import socket
 import socks
@@ -58,7 +59,10 @@ print('You have %d dust txouts, worth %s BTC after fees.' % (
 
 print()
 print('Get rid of them? y/n: ', end='')
-choice = raw_input().lower().strip()
+# Fix Python 2.x.
+try: input = raw_input
+except NameError: pass
+choice = input().lower().strip()
 
 if choice != 'y':
     print('Canceled!')
@@ -120,8 +124,8 @@ if args.tor:
 
 try:
     sock = socket.create_connection(args.address)
-    sock.send(b2x(signed_tx.serialize()))
-    sock.send('\n')
+    sock.send(binascii.hexlify(signed_tx.serialize()))
+    sock.send(b'\n')
     sock.close()
 except socket.error as err:
     print()
