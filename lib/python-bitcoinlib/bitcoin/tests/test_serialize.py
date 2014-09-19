@@ -1,5 +1,13 @@
-# Distributed under the MIT/X11 software license, see the accompanying
-# file COPYING or http://www.opensource.org/licenses/mit-license.php.
+# Copyright (C) 2013-2014 The python-bitcoinlib developers
+#
+# This file is part of python-bitcoinlib.
+#
+# It is subject to the license terms in the LICENSE file found in the top-level
+# directory of this distribution.
+#
+# No part of python-bitcoinlib, including this file, may be copied, modified,
+# propagated, or distributed except according to the terms contained in the
+# LICENSE file.
 
 from __future__ import absolute_import, division, print_function, unicode_literals
 
@@ -9,6 +17,29 @@ import os
 from binascii import unhexlify
 
 from bitcoin.core.serialize import *
+
+class Test_Serializable(unittest.TestCase):
+    def test_extra_data(self):
+        """Serializable.deserialize() fails if extra data is present"""
+
+        class FooSerializable(Serializable):
+            @classmethod
+            def stream_deserialize(cls, f):
+                return cls()
+
+            def stream_serialize(self, f):
+                pass
+
+        try:
+            FooSerializable.deserialize(b'\x00')
+        except DeserializationExtraDataError as err:
+            self.assertEqual(err.obj, FooSerializable())
+            self.assertEqual(err.padding, b'\x00')
+
+        else:
+            self.fail("DeserializationExtraDataError not raised")
+
+        FooSerializable.deserialize(b'\x00', allow_padding=True)
 
 class Test_VarIntSerializer(unittest.TestCase):
     def test(self):

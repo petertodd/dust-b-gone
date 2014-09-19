@@ -1,10 +1,13 @@
-
+# Copyright (C) 2012-2014 The python-bitcoinlib developers
 #
-# script.py
+# This file is part of python-bitcoinlib.
 #
-# Distributed under the MIT/X11 software license, see the accompanying
-# file COPYING or http://www.opensource.org/licenses/mit-license.php.
+# It is subject to the license terms in the LICENSE file found in the top-level
+# directory of this distribution.
 #
+# No part of python-bitcoinlib, including this file, may be copied, modified,
+# propagated, or distributed except according to the terms contained in the
+# LICENSE file.
 
 """Scripts
 
@@ -797,7 +800,37 @@ class CScript(bytes):
                 if op > OP_16:
                     return False
 
-        except CScriptTruncatedPushDataError: # Invalid pushdata
+        except CScriptInvalidError:
+            return False
+        return True
+
+    def has_canonical_pushes(self):
+        """Test if script only uses canonical pushes
+
+        Not yet consensus critical; may be in the future.
+        """
+        try:
+            for (op, data, idx) in self.raw_iter():
+                if op > OP_16:
+                    continue
+
+                elif op < OP_PUSHDATA1 and op > OP_0 and len(data) == 1 and bord(data[0]) <= 16:
+                    # Could have used an OP_n code, rather than a 1-byte push.
+                    return False
+
+                elif op == OP_PUSHDATA1 and len(data) < OP_PUSHDATA1:
+                    # Could have used a normal n-byte push, rather than OP_PUSHDATA1.
+                    return False
+
+                elif op == OP_PUSHDATA2 and len(data) <= 0xFF:
+                    # Could have used a OP_PUSHDATA1.
+                    return False
+
+                elif op == OP_PUSHDATA4 and len(data) <= 0xFFFF:
+                    # Could have used a OP_PUSHDATA2.
+                    return False
+
+        except CScriptInvalidError: # Invalid pushdata
             return False
         return True
 

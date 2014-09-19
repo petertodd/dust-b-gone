@@ -1,10 +1,13 @@
-
+# Copyright (C) 2012-2014 The python-bitcoinlib developers
 #
-# core.py
+# This file is part of python-bitcoinlib.
 #
-# Distributed under the MIT/X11 software license, see the accompanying
-# file COPYING or http://www.opensource.org/licenses/mit-license.php.
+# It is subject to the license terms in the LICENSE file found in the top-level
+# directory of this distribution.
 #
+# No part of python-bitcoinlib, including this file, may be copied, modified,
+# propagated, or distributed except according to the terms contained in the
+# LICENSE file.
 
 from __future__ import absolute_import, division, print_function, unicode_literals
 
@@ -145,6 +148,7 @@ class COutPoint(ImmutableSerializable):
 @__make_mutable
 class CMutableOutPoint(COutPoint):
     """A mutable COutPoint"""
+    __slots__ = []
 
     @classmethod
     def from_outpoint(cls, outpoint):
@@ -175,7 +179,7 @@ class CTxIn(ImmutableSerializable):
         return cls(prevout, scriptSig, nSequence)
 
     def stream_serialize(self, f):
-        self.prevout.stream_serialize(f)
+        COutPoint.stream_serialize(self.prevout, f)
         BytesSerializer.stream_serialize(self.scriptSig, f)
         f.write(struct.pack(b"<I", self.nSequence))
 
@@ -201,6 +205,7 @@ class CTxIn(ImmutableSerializable):
 @__make_mutable
 class CMutableTxIn(CTxIn):
     """A mutable CTxIn"""
+    __slots__ = []
 
     def __init__(self, prevout=None, scriptSig=CScript(), nSequence = 0xffffffff):
         if not (0 <= nSequence <= 0xffffffff):
@@ -270,6 +275,7 @@ class CTxOut(ImmutableSerializable):
 @__make_mutable
 class CMutableTxOut(CTxOut):
     """A mutable CTxOut"""
+    __slots__ = []
 
     @classmethod
     def from_txout(cls, txout):
@@ -332,6 +338,7 @@ class CTransaction(ImmutableSerializable):
 @__make_mutable
 class CMutableTransaction(CTransaction):
     """A mutable transaction"""
+    __slots__ = []
 
     def __init__(self, vin=None, vout=None, nLockTime=0, nVersion=1):
         if not (0 <= nLockTime <= 0xffffffff):
