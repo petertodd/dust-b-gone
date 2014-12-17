@@ -35,9 +35,9 @@ from bitcoin.core import COIN, lx, b2lx, CBlock, CTransaction, COutPoint, CTxOut
 from bitcoin.core.script import CScript
 from bitcoin.wallet import CBitcoinAddress
 
-USER_AGENT = "AuthServiceProxy/0.1"
+DEFAULT_USER_AGENT = "AuthServiceProxy/0.1"
 
-HTTP_TIMEOUT = 30
+DEFAULT_HTTP_TIMEOUT = 30
 
 # (un)hexlify to/from unicode, needed for Python3
 unhexlify = binascii.unhexlify
@@ -59,7 +59,7 @@ class RawProxy(object):
     def __init__(self, service_url=None,
                        service_port=None,
                        btc_conf_file=None,
-                       timeout=HTTP_TIMEOUT,
+                       timeout=DEFAULT_HTTP_TIMEOUT,
                        _connection=None):
         """Low-level JSON-RPC proxy
 
@@ -137,7 +137,7 @@ class RawProxy(object):
                                'id': self.__id_count})
         self.__conn.request('POST', self.__url.path, postdata,
                             {'Host': self.__url.hostname,
-                             'User-Agent': USER_AGENT,
+                             'User-Agent': DEFAULT_USER_AGENT,
                              'Authorization': self.__auth_header,
                              'Content-type': 'application/json'})
 
@@ -169,7 +169,7 @@ class RawProxy(object):
         postdata = json.dumps(list(rpc_call_list))
         self.__conn.request('POST', self.__url.path, postdata,
                             {'Host': self.__url.hostname,
-                             'User-Agent': USER_AGENT,
+                             'User-Agent': DEFAULT_USER_AGENT,
                              'Authorization': self.__auth_header,
                              'Content-type': 'application/json'})
 
@@ -189,7 +189,7 @@ class Proxy(RawProxy):
     def __init__(self, service_url=None,
                        service_port=None,
                        btc_conf_file=None,
-                       timeout=HTTP_TIMEOUT,
+                       timeout=DEFAULT_HTTP_TIMEOUT,
                        **kwargs):
         """Create a proxy to a bitcoin RPC service
 
@@ -209,7 +209,7 @@ class Proxy(RawProxy):
         timeout - timeout in seconds before the HTTP interface times out
         """
         super(Proxy, self).__init__(service_url=service_url, service_port=service_port, btc_conf_file=btc_conf_file,
-                                    timeout=HTTP_TIMEOUT,
+                                    timeout=timeout,
                                     **kwargs)
     def getaccountaddress(self, account=None):
         """Return the current Bitcoin address for receiving payments to this account."""
@@ -256,7 +256,8 @@ class Proxy(RawProxy):
     def getinfo(self):
         """Return an object containing various state info"""
         r = self._call('getinfo')
-        r['balance'] = int(r['balance'] * COIN)
+        if 'balance' in r:
+            r['balance'] = int(r['balance'] * COIN)
         r['paytxfee'] = int(r['paytxfee'] * COIN)
         return r
 
@@ -321,6 +322,21 @@ class Proxy(RawProxy):
             r = CTransaction.deserialize(unhexlify(r))
 
         return r
+
+    def getreceivedbyaddress(self, addr, minconf=1):
+        """Return total amount received by given a (wallet) address
+
+        Get the amount received by <address> in transactions with at least
+        [minconf] confirmations.
+
+        Works only for addresses in the local wallet; other addresses will
+        always show zero.
+
+        addr    - The address. (CBitcoinAddress instance)
+        minconf - Only include transactions confirmed at least this many times. (default=1)
+        """
+        r = self._call('getreceivedbyaddress', str(addr), minconf)
+        return int(r * COIN)
 
     def gettransaction(self, txid):
         """Get detailed information about in-wallet transaction txid
@@ -450,3 +466,9 @@ class Proxy(RawProxy):
 
     def removenode(self, node):
         return self._addnode(node, 'remove')
+
+__all__ = (
+        'JSONRPCException',
+        'RawProxy',
+        'Proxy',
+)

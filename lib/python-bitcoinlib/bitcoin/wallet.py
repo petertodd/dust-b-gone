@@ -18,11 +18,9 @@ scriptPubKeys; currently there is no actual wallet support implemented.
 from __future__ import absolute_import, division, print_function, unicode_literals
 
 import sys
-bchr = chr
-bord = ord
+_bord = ord
 if sys.version > '3':
-        bchr = lambda x: bytes([x])
-        bord = lambda x: x
+    _bord = lambda x: x
 
 import bitcoin
 import bitcoin.base58
@@ -88,8 +86,16 @@ class P2SHBitcoinAddress(CBitcoinAddress):
         return super(P2SHBitcoinAddress, cls).from_bytes(data, nVersion)
 
     @classmethod
+    def from_redeemScript(cls, redeemScript):
+        """Convert a redeemScript to a P2SH address
+
+        Convenience function: equivalent to P2SHBitcoinAddress.from_scriptPubKey(redeemScript.to_p2sh_scriptPubKey())
+        """
+        return cls.from_scriptPubKey(redeemScript.to_p2sh_scriptPubKey())
+
+    @classmethod
     def from_scriptPubKey(cls, scriptPubKey):
-        """Convert a scriptPubKey to a P2PKH address
+        """Convert a scriptPubKey to a P2SH address
 
         Raises CBitcoinAddressError if the scriptPubKey isn't of the correct
         form.
@@ -158,11 +164,11 @@ class P2PKHBitcoinAddress(CBitcoinAddress):
                 raise CBitcoinAddressError('not a P2PKH scriptPubKey: script is invalid')
 
         if (len(scriptPubKey) == 25
-                and bord(scriptPubKey[0])  == script.OP_DUP
-                and bord(scriptPubKey[1])  == script.OP_HASH160
-                and bord(scriptPubKey[2])  == 0x14
-                and bord(scriptPubKey[23]) == script.OP_EQUALVERIFY
-                and bord(scriptPubKey[24]) == script.OP_CHECKSIG):
+                and _bord(scriptPubKey[0])  == script.OP_DUP
+                and _bord(scriptPubKey[1])  == script.OP_HASH160
+                and _bord(scriptPubKey[2])  == 0x14
+                and _bord(scriptPubKey[23]) == script.OP_EQUALVERIFY
+                and _bord(scriptPubKey[24]) == script.OP_CHECKSIG):
             return cls.from_bytes(scriptPubKey[3:23], bitcoin.params.BASE58_PREFIXES['PUBKEY_ADDR'])
 
         elif accept_bare_checksig:
@@ -171,14 +177,14 @@ class P2PKHBitcoinAddress(CBitcoinAddress):
             # We can operate on the raw bytes directly because we've
             # canonicalized everything above.
             if (len(scriptPubKey) == 35 # compressed
-                  and bord(scriptPubKey[0])  == 0x21
-                  and bord(scriptPubKey[34]) == script.OP_CHECKSIG):
+                  and _bord(scriptPubKey[0])  == 0x21
+                  and _bord(scriptPubKey[34]) == script.OP_CHECKSIG):
 
                 pubkey = scriptPubKey[1:34]
 
             elif (len(scriptPubKey) == 67 # uncompressed
-                    and bord(scriptPubKey[0]) == 0x41
-                    and bord(scriptPubKey[66]) == script.OP_CHECKSIG):
+                    and _bord(scriptPubKey[0]) == 0x41
+                    and _bord(scriptPubKey[66]) == script.OP_CHECKSIG):
 
                 pubkey = scriptPubKey[1:65]
 
@@ -235,4 +241,15 @@ class CBitcoinSecret(bitcoin.base58.CBase58Data, CKey):
             raise CBitcoinSecretError('Not a base58-encoded secret key: got nVersion=%d; expected nVersion=%d' % \
                                       (self.nVersion, bitcoin.params.BASE58_PREFIXES['SECRET_KEY']))
 
-        CKey.__init__(self, self[0:32], len(self) > 32 and bord(self[32]) == 1)
+        CKey.__init__(self, self[0:32], len(self) > 32 and _bord(self[32]) == 1)
+
+
+__all__ = (
+        'CBitcoinAddressError',
+        'CBitcoinAddress',
+        'P2SHBitcoinAddress',
+        'P2PKHBitcoinAddress',
+        'CKey',
+        'CBitcoinSecretError',
+        'CBitcoinSecret',
+)

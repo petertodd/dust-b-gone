@@ -23,13 +23,13 @@ import struct
 import sys
 
 if sys.version > '3':
-    bchr = lambda x: bytes([x])
-    bord = lambda x: x[0]
-    from io import BytesIO
+    _bchr = lambda x: bytes([x])
+    _bord = lambda x: x[0]
+    from io import BytesIO as _BytesIO
 else:
-    bchr = chr
-    bord = ord
-    from cStringIO import StringIO as BytesIO
+    _bchr = chr
+    _bord = ord
+    from cStringIO import StringIO as _BytesIO
 
 MAX_SIZE = 0x02000000
 
@@ -98,7 +98,7 @@ class Serializable(object):
 
     def serialize(self):
         """Serialize, returning bytes"""
-        f = BytesIO()
+        f = _BytesIO()
         self.stream_serialize(f)
         return f.getvalue()
 
@@ -111,7 +111,7 @@ class Serializable(object):
         If allow_padding is False and not all bytes are consumed during
         deserialization DeserializationExtraDataError will be raised.
         """
-        fd = BytesIO(buf)
+        fd = _BytesIO(buf)
         r = cls.stream_deserialize(fd)
         if not allow_padding:
             padding = fd.read()
@@ -178,13 +178,13 @@ class Serializer(object):
 
     @classmethod
     def serialize(cls, obj):
-        f = BytesIO()
+        f = _BytesIO()
         cls.stream_serialize(obj, f)
         return f.getvalue()
 
     @classmethod
     def deserialize(cls, buf):
-        return cls.stream_deserialize(BytesIO(buf))
+        return cls.stream_deserialize(_BytesIO(buf))
 
 
 class VarIntSerializer(Serializer):
@@ -194,20 +194,20 @@ class VarIntSerializer(Serializer):
         if i < 0:
             raise ValueError('varint must be non-negative integer')
         elif i < 0xfd:
-            f.write(bchr(i))
+            f.write(_bchr(i))
         elif i <= 0xffff:
-            f.write(bchr(0xfd))
+            f.write(_bchr(0xfd))
             f.write(struct.pack(b'<H', i))
         elif i <= 0xffffffff:
-            f.write(bchr(0xfe))
+            f.write(_bchr(0xfe))
             f.write(struct.pack(b'<I', i))
         else:
-            f.write(bchr(0xff))
+            f.write(_bchr(0xff))
             f.write(struct.pack(b'<Q', i))
 
     @classmethod
     def stream_deserialize(cls, f):
-        r = bord(ser_read(f, 1))
+        r = _bord(ser_read(f, 1))
         if r < 0xfd:
             return r
         elif r == 0xfd:
@@ -320,3 +320,24 @@ def uint256_to_shortstr(u):
     return s[:16]
 
 
+__all__ = (
+        'MAX_SIZE',
+        'Hash',
+        'Hash160',
+        'SerializationError',
+        'SerializationTruncationError',
+        'DeserializationExtraDataError',
+        'ser_read',
+        'Serializable',
+        'ImmutableSerializable',
+        'Serializer',
+        'VarIntSerializer',
+        'BytesSerializer',
+        'VectorSerializer',
+        'uint256VectorSerializer',
+        'intVectorSerialzer',
+        'VarStringSerializer',
+        'uint256_from_str',
+        'uint256_from_compact',
+        'uint256_to_shortstr',
+)

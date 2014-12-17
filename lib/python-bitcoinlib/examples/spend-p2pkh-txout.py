@@ -11,7 +11,7 @@
 # propagated, or distributed except according to the terms contained in the
 # LICENSE file.
 
-"""Low-level example of how to spend a standard pay-to-pubkey-hash txout"""
+"""Low-level example of how to spend a standard pay-to-pubkey-hash (P2PKH) txout"""
 
 import sys
 if sys.version_info.major < 3:
@@ -57,7 +57,7 @@ txin_scriptPubKey = CScript([OP_DUP, OP_HASH160, Hash160(seckey.pub), OP_EQUALVE
 txout = CMutableTxOut(0.001*COIN, CBitcoinAddress('1C7zdTfnkzmr13HfA2vNm5SJYRK6nEKyq8').to_scriptPubKey())
 
 # Create the unsigned transaction.
-tx = CMutableTransaction([txin],[txout])
+tx = CMutableTransaction([txin], [txout])
 
 # Calculate the signature hash for that transaction.
 sighash = SignatureHash(txin_scriptPubKey, tx, 0, SIGHASH_ALL)

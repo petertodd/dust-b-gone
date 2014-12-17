@@ -1,6 +1,35 @@
 python-bitcoinlib release notes
 ===============================
 
+v0.3.0
+======
+
+Major change: cleaned up what symbols are exported by modules. __all__ is now
+used extensively, which may break some applications that were not importing the
+right modules. Along those lines some implementation details like the ssl
+attribute of the bitcoin.core.key module, and the entire bitcoin.core.bignum
+module, are no longer part of the public API. This should not affect too many
+users, but it will break some code.
+
+Other notable changes:
+
+* New getreceivedbyaddress RPC call.
+* Fixed getbalance RPC call when wallet is configured off.
+* Various code cleanups and minor bug fixes.
+
+
+v0.2.1
+======
+
+* Improve bitcoin address handling. P2SH and P2PKH addresses now get their own
+  classes - P2SHBitcoinAddress and P2PKHBitcoinAddress respectively - and P2PKH
+  can now convert scriptPubKeys containing non-canonical pushes as well as bare
+  checksig to addresses.
+* .deserialize() methods now fail if there is extra data left over.
+* Various other small bugfixes.
+* License is now LGPL v3 or later.
+
+
 v0.2.0
 ======
 

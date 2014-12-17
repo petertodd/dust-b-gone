@@ -9,12 +9,14 @@
 # propagated, or distributed except according to the terms contained in the
 # LICENSE file.
 
-from __future__ import absolute_import, division, print_function, unicode_literals
+from __future__ import absolute_import, division, print_function
 
-import struct
-import socket
 import binascii
 import hashlib
+import socket
+import struct
+import sys
+import time
 
 from .script import CScript
 
@@ -26,29 +28,32 @@ MAX_MONEY = 21000000 * COIN
 MAX_BLOCK_SIZE = 1000000
 MAX_BLOCK_SIGOPS = MAX_BLOCK_SIZE/50
 
-BIP0031_VERSION = 60000
-PROTO_VERSION = 60002
-MIN_PROTO_VERSION = 209
-
-CADDR_TIME_VERSION = 31402
-
 def MoneyRange(nValue):
-        return 0 <= nValue <= MAX_MONEY
+    return 0 <= nValue <= MAX_MONEY
+
+def _py2_x(h):
+    """Convert a hex string to bytes"""
+    return binascii.unhexlify(h)
 
 def x(h):
     """Convert a hex string to bytes"""
-    import sys
-    if sys.version > '3':
-        return binascii.unhexlify(h.encode('utf8'))
-    else:
-        return binascii.unhexlify(h)
+    return binascii.unhexlify(h.encode('utf8'))
+
+def _py2_b2x(b):
+    """Convert bytes to a hex string"""
+    return binascii.hexlify(b)
 
 def b2x(b):
     """Convert bytes to a hex string"""
-    if sys.version > '3':
-        return binascii.hexlify(b).decode('utf8')
-    else:
-        return binascii.hexlify(b)
+    return binascii.hexlify(b).decode('utf8')
+
+def _py2_lx(h):
+    """Convert a little-endian hex string to bytes
+
+    Lets you write uint256's and uint160's the way the Satoshi codebase shows
+    them.
+    """
+    return binascii.unhexlify(h)[::-1]
 
 def lx(h):
     """Convert a little-endian hex string to bytes
@@ -56,11 +61,15 @@ def lx(h):
     Lets you write uint256's and uint160's the way the Satoshi codebase shows
     them.
     """
-    import sys
-    if sys.version > '3':
-        return binascii.unhexlify(h.encode('utf8'))[::-1]
-    else:
-        return binascii.unhexlify(h)[::-1]
+    return binascii.unhexlify(h.encode('utf8'))[::-1]
+
+def _py2_b2lx(b):
+    """Convert bytes to a little-endian hex string
+
+    Lets you show uint256's and uint160's the way the Satoshi codebase shows
+    them.
+    """
+    return binascii.hexlify(b[::-1])
 
 def b2lx(b):
     """Convert bytes to a little-endian hex string
@@ -68,10 +77,19 @@ def b2lx(b):
     Lets you show uint256's and uint160's the way the Satoshi codebase shows
     them.
     """
-    if sys.version > '3':
-        return binascii.hexlify(b[::-1]).decode('utf8')
-    else:
-        return binascii.hexlify(b[::-1])
+    return binascii.hexlify(b[::-1]).decode('utf8')
+
+if not (sys.version > '3'):
+    x = _py2_x
+    b2x = _py2_b2x
+    lx = _py2_lx
+    b2lx = _py2_b2lx
+
+del _py2_x
+del _py2_b2x
+del _py2_lx
+del _py2_b2lx
+
 
 def str_money_value(value):
     """Convert an integer money value to a fixed point string"""
@@ -424,11 +442,20 @@ class CBlock(CBlockHeader):
 
     @staticmethod
     def build_merkle_tree_from_txids(txids):
-        """Build a full merkle tree from txids
+        """Build a full CBlock merkle tree from txids
 
         txids - iterable of txids
 
-        Returns a new merkle tree in deepest first order.
+        Returns a new merkle tree in deepest first order. The last element is
+        the merkle root.
+
+        WARNING! If you're reading this because you're learning about crypto
+        and/or designing a new system that will use merkle trees, keep in mind
+        that the following merkle tree algorithm has a serious flaw related to
+        duplicate txids, resulting in a vulnerability. (CVE-2012-2459) Bitcoin
+        has since worked around the flaw, but for new applications you should
+        use something different; don't just copy-and-paste this code without
+        understanding the problem first.
         """
         merkle_tree = list(txids)
 
@@ -705,3 +732,42 @@ def CheckBlock(block, fCheckPoW = True, fCheckMerkleRoot = True, cur_time=None):
     # Check merkle root
     if fCheckMerkleRoot and block.hashMerkleRoot != block.calc_merkle_root():
         raise CheckBlockError("CheckBlock() : hashMerkleRoot mismatch")
+
+__all__ = (
+        'Hash',
+        'Hash160',
+        'COIN',
+        'MAX_MONEY',
+        'MAX_BLOCK_SIZE',
+        'MAX_BLOCK_SIGOPS',
+        'MoneyRange',
+        'x',
+        'b2x',
+        'lx',
+        'b2lx',
+        'str_money_value',
+        'ValidationError',
+        'COutPoint',
+        'CMutableOutPoint',
+        'CTxIn',
+        'CMutableTxIn',
+        'CTxOut',
+        'CMutableTxOut',
+        'CTransaction',
+        'CMutableTransaction',
+        'CBlockHeader',
+        'CBlock',
+        'CoreChainParams',
+        'CoreMainParams',
+        'CoreTestNetParams',
+        'CoreRegTestParams',
+        'CheckTransactionError',
+        'CheckTransaction',
+        'CheckBlockHeaderError',
+        'CheckProofOfWorkError',
+        'CheckProofOfWork',
+        'CheckBlockHeader',
+        'CheckBlockError',
+        'GetLegacySigOpCount',
+        'CheckBlock',
+)

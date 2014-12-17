@@ -11,19 +11,28 @@
 
 from __future__ import absolute_import, division, print_function, unicode_literals
 
+import hashlib
+import random
 import struct
 import time
-import random
-import sys
-from binascii import hexlify
-if sys.version > '3':
-    import io
-else:
-    import cStringIO as io
 
-from .core import *
-from .core.serialize import *
-from .net import *
+# Py3 compatibility
+import sys
+
+if sys.version > '3':
+    _bchr = lambda x: bytes([x])
+    _bord = lambda x: x[0]
+    from io import BytesIO as _BytesIO
+else:
+    _bchr = chr
+    _bord = ord
+    from cStringIO import StringIO as _BytesIO
+
+# Bad practice, so we have a __all__ at the end; this should be cleaned up
+# later.
+from bitcoin.core import *
+from bitcoin.core.serialize import *
+from bitcoin.net import *
 from bitcoin import MainParams
 
 MSG_TX = 1
@@ -43,7 +52,7 @@ class MsgSerializable(Serializable):
         raise NotImplementedError
 
     def to_bytes(self, params=MainParams()):
-        f = BytesIO()
+        f = _BytesIO()
         self.msg_ser(f)
         body = f.getvalue()
         res = params.MESSAGE_START
@@ -61,7 +70,7 @@ class MsgSerializable(Serializable):
 
     @classmethod
     def from_bytes(cls, b, protover=PROTO_VERSION):
-        f = BytesIO(b)
+        f = _BytesIO(b)
         return MsgSerializable.stream_deserialize(f, protover=protover)
 
     @classmethod
@@ -71,7 +80,7 @@ class MsgSerializable(Serializable):
         # check magic
         if recvbuf[:4] != params.MESSAGE_START:
             raise ValueError("Invalid message start '%s', expected '%s'" %
-                             (recvbuf[:4], params.MESSAGE_START))
+                             (b2x(recvbuf[:4]), b2x(params.MESSAGE_START)))
 
         # remaining header fields: command, msg length, checksum
         command = recvbuf[4:4+12].split(b"\x00", 1)[0]
@@ -91,7 +100,7 @@ class MsgSerializable(Serializable):
         if command in messagemap:
             cls = messagemap[command]
             #        print("Going to deserialize '%s'" % msg)
-            return cls.msg_deser(BytesIO(msg))
+            return cls.msg_deser(_BytesIO(msg))
         else:
             print("Command '%s' not in messagemap" % str(command, 'ascii'))
             return None
@@ -271,7 +280,7 @@ class msg_getblocks(MsgSerializable):
         f.write(self.hashstop)
 
     def __repr__(self):
-        return "msg_getblocks(locator=%s hashstop=%s)" % (repr(self.locator), hexlify(self.hashstop))
+        return "msg_getblocks(locator=%s hashstop=%s)" % (repr(self.locator), b2x(self.hashstop))
 
 
 class msg_getheaders(MsgSerializable):
@@ -294,7 +303,7 @@ class msg_getheaders(MsgSerializable):
         f.write(self.hashstop)
 
     def __repr__(self):
-        return "msg_getheaders(locator=%s hashstop=%s)" % (repr(self.locator), hexlify(self.hashstop))
+        return "msg_getheaders(locator=%s hashstop=%s)" % (repr(self.locator), b2x(self.hashstop))
 
 
 class msg_headers(MsgSerializable):
@@ -373,10 +382,6 @@ class msg_getaddr(MsgSerializable):
     def __repr__(self):
         return "msg_getaddr()"
 
-#msg_checkorder
-#msg_submitorder
-#msg_reply
-
 
 class msg_ping(MsgSerializable):
     command = b"ping"
@@ -442,3 +447,28 @@ msg_classes = [msg_version, msg_verack, msg_addr, msg_alert, msg_inv,
 messagemap = {}
 for cls in msg_classes:
     messagemap[cls.command] = cls
+
+
+__all__ = (
+        'MSG_TX',
+        'MSG_BLOCK',
+        'MSG_FILTERED_BLOCK',
+        'MsgSerializable',
+        'msg_version',
+        'msg_verack',
+        'msg_addr',
+        'msg_alert',
+        'msg_inv',
+        'msg_getdata',
+        'msg_getblocks',
+        'msg_getheaders',
+        'msg_headers',
+        'msg_tx',
+        'msg_block',
+        'msg_getaddr',
+        'msg_ping',
+        'msg_pong',
+        'msg_mempool',
+        'msg_classes',
+        'messagemap',
+)
