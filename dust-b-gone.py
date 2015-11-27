@@ -70,7 +70,7 @@ if choice != 'y':
 
 # User gave the ok, create a NONE|ANYONECANPAY tx spending those txouts
 
-txins = [CTxIn(dust_txout['outpoint']) for dust_txout in dust_txouts]
+txins = [CTxIn(dust_txout['outpoint'], nSequence=0) for dust_txout in dust_txouts]
 txouts = [CTxOut(0, CScript([OP_RETURN]))]
 tx = CTransaction(txins, txouts)
 
